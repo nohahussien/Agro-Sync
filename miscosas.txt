@@ -1,0 +1,16 @@
+Ejecutar el docker:
+
+docker build -t teatr-api . --no-cache
+docker rm -f teatr-api
+docker run --name teatr-api -p 8282:8282 teatr-api
+
+
+# LOCALHOST
+docker build -t agrosync-api . --no-cache
+docker rm -f agrosync-api
+docker run -it --rm --name agrosync-api -p 8282:8282 -v "$(pwd)/app:/app/app" -e PYTHONPATH=/app agrosync-api
+
+
+# PARA AWS
+sudo docker pull migel1985/agrosync-api:vXXXXXXXX
+sudo docker run -d   --name agrosync-api   -p 8282:8282   migel1985/agrosync-api:vXXXXXXXX

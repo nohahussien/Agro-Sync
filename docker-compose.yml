@@ -1,0 +1,11 @@
+# QUITA version (obsoleto)
+services:
+  teatr-api:
+    build: .
+    ports:
+      - "8282:8282"
+    volumes:
+      - ./app:/app/app
+    environment:
+      - PYTHONPATH=/app
+    restart: unless-stopped
