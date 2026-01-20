@@ -1,50 +1,24 @@
 import requests
 import os
-from flask import request, jsonify, Blueprint
+from flask import Blueprint, jsonify
 
-# Blueprint para modularidad
 auth_bp = Blueprint('auth', __name__, url_prefix='/agrosync-api')
 
+def getToken():  # ← Ahora SÍ devuelve STRING
+    userdata = {
+        "username": os.getenv('AURAVANT_AUTH_USER', ''),
+        "password": os.getenv('AURAVANT_AUTH_PASS', '')
+    }
+    urlAuraAuth = os.getenv('AURAVANT_AUTH_URL', 'https://api.auravant.com/api/') + 'auth'
+    
+    resp = requests.post(urlAuraAuth, data=userdata)
+    if resp.status_code == 200:
+        return resp.json().get("token")
+    return None
 
 @auth_bp.route('/authtoken', methods=['POST'])
 def authtoken():
-    try:
-             
-        # Llamada a Auravant
-        userdata = {
-            "username": os.getenv('AURAVANT_AUTH_USER', ''),
-            "password": os.getenv('AURAVANT_AUTH_PASS', '')
-        }
-        urlAuraAuth = os.getenv('AURAVANT_AUTH_URL', '') + 'auth'
-        try:
-            resp = requests.post(urlAuraAuth, data=userdata)
-        except requests.RequestException:
-            return jsonify({"error": "Error comunicando con Auravant"}), 502
-
-        # Si Auravant devuelve error
-        if resp.status_code != 200:
-            return jsonify({
-                "success": False,
-                "message": "Credenciales inválidas",
-                "auravant_response": resp.json()
-            }), 401
-        
-        body = resp.json()
-        
-        token = body.get("token")  # el token viene en la clave "token" [web:9]
-
-        if not token:
-            return jsonify({
-                "success": False,
-                "message": "No se recibió token desde Auravant",
-                "auravant_response": body
-            }), 502
-
-        # Devuelves el token al front
-        return jsonify({
-            "success": True,
-            "token": token
-        }), 200
-            
-    except Exception as e:
-        return jsonify({'error': f'Miguel: Error del servidor: {str(e)}'}), 500
+    token = getToken()
+    if not token:
+        return jsonify({"success": False, "message": "Credenciales inválidas"}), 401
+    return jsonify({"success": True, "token": token}), 200

@@ -1,46 +1,66 @@
 import requests
 import os
-from auth import authtoken
-from flask import request, jsonify, Blueprint
+from .auth import getToken  # ← Import específico
+from flask import Blueprint, request, jsonify
 
-# Blueprint para modularidad
-field_bp = Blueprint('auth', __name__, url_prefix='/agrosync-api')
+field_bp = Blueprint('fields', __name__, url_prefix='/agrosync-api')
 
-
-@auth_bp.route('/getfields', methods=['POST'])
-def default_login():
-    try:
-             
-        token = authtoken()
-
-        try:
-            resp = requests.post(os.getenv('AURAVANT_AUTH_URL', ''), data=userdata)
-        except requests.RequestException:
-            return jsonify({"error": "Error comunicando con Auravant"}), 502
-
-        # Si Auravant devuelve error
-        if resp.status_code != 200:
-            return jsonify({
-                "success": False,
-                "message": "Credenciales inválidas",
-                "auravant_response": resp.json()
-            }), 401
+@field_bp.route('/getfields', methods=['POST'])  # ← GET, no POST
+def getfields():
+    token = getToken()
+    if not token:
+        return jsonify({"error": "No token"}), 401
         
-        body = resp.json()
-        token = body.get("token")  # el token viene en la clave "token" [web:9]
+    urlAuragetFields = os.getenv('AURAVANT_BASE_URL', 'https://api.auravant.com/api/') + 'getfields'
+    headers = {'Authorization': f'Bearer {token}'}
+    
+    resp = requests.get(urlAuragetFields, headers=headers)  # ← GET
+    
+    return jsonify(resp.json()), resp.status_code
 
-        if not token:
-            return jsonify({
-                "success": False,
-                "message": "No se recibió token desde Auravant",
-                "auravant_response": body
-            }), 502
 
-        # Devuelves el token al front
-        return jsonify({
-            "success": True,
-            "token": token
-        }), 200
-            
-    except Exception as e:
-        return jsonify({'error': f'Miguel: Error del servidor: {str(e)}'}), 500
+'''
+CREA NUEVO LOTE
+{
+  "info": "Nuevo id lote 784125",
+  "id_campo": 227760,
+  "res": "ok",
+  "uuid_lote": "19f19eed-21ad-450d-b390-a0a43031ebed",
+  "id_lote": "784125",
+  "uuid_campo": "7967bd23-59ae-4539-bfea-1a3591ee11a2"
+}
+
+DA ERROR PORQUE YA EXISTE:
+
+{
+  "info": "Ya existe un lote con ese nombre para el campo indicado",
+  "res": "error",
+  "code": 4
+}
+
+'''
+
+@field_bp.route('/agregarlote', methods=['POST']) 
+def agregarlote():
+    print("entro en agregarlote")
+    token = getToken()
+    if not token:
+        return jsonify({"error": "No token"}), 401
+    
+    data = request.get_json()
+    
+    # Accede a los parámetros
+    coordenadas = data.get('shape');
+    print(coordenadas)
+    nombreDeCampo = data.get('nombrecampo');
+
+    urlAuragetFields = os.getenv('AURAVANT_BASE_URL', 'https://api.auravant.com/api/') + 'agregarlote'
+    headers = {'Authorization': f'Bearer {token}'}
+    userdata = {
+        "nombre": -1,   
+        "shape": coordenadas,
+        "nombrecampo": nombreDeCampo
+    }
+    resp = requests.post(urlAuragetFields, headers=headers, data=userdata)  # ← GET
+    
+    return jsonify(resp.json()), resp.status_code

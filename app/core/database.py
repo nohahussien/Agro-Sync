@@ -8,11 +8,11 @@ def get_db_connection():
     """Conexión escalable a PostgreSQL"""
     print("entra en get_db_connection()")
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'host.docker.internal'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'AgroSync'),
-        user=os.getenv('DB_USER', 'postgres'),
-        password=os.getenv('DB_PASSWORD', '12345678')
+        host=os.getenv('DB_HOST', ''),
+        port=os.getenv('DB_PORT', ''),
+        database=os.getenv('DB_NAME', ''),
+        user=os.getenv('DB_USER', ''),
+        password=os.getenv('DB_PASSWORD', '')
     )
 
 
