@@ -1,18 +1,17 @@
 import requests
 import pandas as pd
 from flask import Blueprint, request, jsonify
+from models.field import getParcelas4HistMeteo
 
 meteo_bp = Blueprint('meteo', __name__, url_prefix='/agrosync-api')
 
 @meteo_bp.route('/forecast', methods=['GET'])
 def current_weather():
+    # TRAE EL ACTUAL SEGUN PARÁMETROS DE ENTRADA DE LONGITUD Y LATITUD
     print("entro en forecast")
     data = request.get_json()
     lat = data.get('lat')
     lon = data.get('lon')
-
-    print(lat)
-    print(lon)
 
     url = "https://api.open-meteo.com/v1/forecast"
 

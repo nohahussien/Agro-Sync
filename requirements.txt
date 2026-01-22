@@ -10,3 +10,5 @@ langchain-groq==0.1.9
 langchain-core==0.2.28
 langchain-community==0.2.10
 groq==0.4.1
+
+schedule==1.2.0

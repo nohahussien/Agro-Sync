@@ -1,23 +1,22 @@
-from sqlalchemy import Column, Integer, String  # ← Quita Base
-# from app.core.database import Base  # ← ELIMINA ESTA LÍNEA
+from sqlalchemy import Column, Integer, String  
 from app.core.database import get_db_connection
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-def parcelaExiste(uid_producer: str, coords: str):
+def getParcelas4HistMeteo():
     conn = get_db_connection()
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            # Verificar si email ya existe
-            cur.execute("SELECT uid_parcel FROM public.parcels where uid_producer = %s and coordinates_parcel like  %s", (uid_producer, coords))
-            if cur.fetchone():
-                return "Error||||La parcerla existe para el productor de la sesión"   
-            else:
-                return "OK|||ParcelaLibre"
-            
+            cur.execute("""
+                SELECT uid_parcel, coordinates_parcel
+                FROM parcels
+            """)
+            parcelas = cur.fetchall()  # ← Recupera TODAS las filas
+            return parcelas  # lista de dicts
+
     except Exception as e:
         conn.rollback()
-        print(f"Error en register_user: {e}")
-        return None
+        print(f"Error en getParcelas4HistMeteo: {e}")
+        return []
     finally:
         conn.close()
