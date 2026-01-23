@@ -1,139 +1,208 @@
 import cv2
 import json
-import base64
 import numpy as np
 import requests
+import math
+import os
 from roboflow import Roboflow
 
-# --- CONFIGURACIÓN (Idealmente esto iría en variables de entorno .env) ---
+# --- CONFIGURACIÓN ---
 ROBOFLOW_API_KEY = "Meni7XPRgKOEkHJeXRHz"
-PLANT_ID_API_KEY = "ykRbohCpTwwOb701JFAVZAWngD1LgF4JQNxT74l6rCEZQof5qP"
-PLANT_ID_ENDPOINT = "https://api.plant.id/v3/identification"
 
 class AgroEngine:
     def __init__(self):
-        # Inicializamos Roboflow una sola vez al arrancar la clase
+        # Solo inicializamos Roboflow
         self.rf = Roboflow(api_key=ROBOFLOW_API_KEY)
         self.project = self.rf.workspace("agridrone-pblcc").project("agridetect")
         self.version = self.project.version(3)
         self.model = self.version.model
 
-    def _process_roboflow(self, image_bytes):
-        """Procesa la imagen para detectar Cielo y Suelo usando YOLO."""
+    def _decode_bytes_to_numpy(self, image_bytes):
         try:
-            # Convertir bytes a numpy array para OpenCV
             nparr = np.frombuffer(image_bytes, np.uint8)
-            image_numpy = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            return img
+        except Exception:
+            return None
 
-            if image_numpy is None:
-                return {"error": "No se pudo decodificar la imagen para CV2"}
+    def _pixel_to_unit_vector_dual_fisheye(self, x, y, width, height):
+        """
+        Calcula el vector 3D unitario para cámaras Dual Fisheye (Insta360).
+        """
+        lens_width = width / 2
+        lens_radius = height / 2 
+        
+        is_front_lens = True
+        center_x = 0
+        center_y = height / 2
+        
+        if x < lens_width:
+            is_front_lens = True
+            center_x = lens_width / 2
+        else:
+            is_front_lens = False
+            center_x = lens_width + (lens_width / 2)
 
-            # Predicción (con confianza base del 40%)
-            response = self.model.predict(image_numpy, confidence=40).json()
+        u = (x - center_x) / lens_radius
+        v = (y - center_y) / lens_radius
 
-            # Normalización de respuesta
-            detections_list = []
-            if isinstance(response, dict) and 'predictions' in response:
-                detections_list = response['predictions']
-            elif isinstance(response, list):
-                detections_list = response
+        distance_sq = u*u + v*v
+        if distance_sq > 1.0:
+            return None 
 
-            # Lógica de selección (Target Mapping)
-            target_mapping = {
-                "sky": ["sky", "cielo", "cloud"], 
-                "soil": ["crop", "soil", "field", "ground", "agriculture-land", "land"]
-            }
+        z_component = math.sqrt(max(0, 1.0 - distance_sq))
 
-            final_result = {"sky": None, "soil": None}
-
-            for key, possible_labels in target_mapping.items():
-                best_candidate = None
-                max_confidence = 0
-                for det in detections_list:
-                    if det['class'].lower() in possible_labels:
-                        if det['confidence'] > max_confidence:
-                            max_confidence = det['confidence']
-                            best_candidate = det
-                
-                if best_candidate:
-                    final_result[key] = {
-                        "x": int(best_candidate['x']),
-                        "y": int(best_candidate['y']),
-                        "confidence": float(best_candidate['confidence'])
-                    }
-            return final_result
-
-        except Exception as e:
-            return {"error": f"Fallo en Roboflow: {str(e)}"}
-
-    def _process_plant_id(self, image_bytes):
-        """Procesa la imagen para identificar cultivo y enfermedades."""
-        try:
-            # Codificar bytes directamente a Base64
-            base64_img = base64.b64encode(image_bytes).decode("utf-8")
-
-            headers = {
-                "Content-Type": "application/json",
-                "Api-Key": PLANT_ID_API_KEY
-            }
-            
-            data = {
-                "images": [base64_img],
-                "latitude": 40.4168, # Podríamos parametrizar esto en el futuro
-                "longitude": -3.7038,
-                "health": "all",
-                "similar_images": True
-            }
-
-            response = requests.post(PLANT_ID_ENDPOINT, headers=headers, json=data)
-            response.raise_for_status()
-            api_response = response.json()
-
-            # --- Parser Backend (Tu lógica original adaptada) ---
-            if not api_response or 'result' not in api_response:
-                return {"error": "Respuesta vacía de Plant.id"}
-
-            result = api_response['result']
-            parsed_data = {}
-
-            # 1. Identificación
-            classification = result.get('classification', {}).get('suggestions', [])
-            if classification:
-                top_match = classification[0]
-                parsed_data['plant_name'] = top_match['name']
-                parsed_data['plant_confidence'] = top_match['probability']
-                details = top_match.get('details', {})
-                parsed_data['common_name'] = details.get('common_names', ["Desconocido"])[0]
-                parsed_data['info_url'] = details.get('url', None)
-
-            # 2. Salud
-            is_healthy = result.get('is_healthy', {})
-            parsed_data['healthy_prob'] = is_healthy.get('probability', 0)
-
-            # 3. Enfermedades
-            disease_suggestions = result.get('disease', {}).get('suggestions', [])
-            parsed_data['diseases'] = []
-            if disease_suggestions:
-                for d in disease_suggestions:
-                    if d['probability'] > 0.10: 
-                        parsed_data['diseases'].append({
-                            'name': d['name'],
-                            'probability': d['probability'],
-                            'description': d.get('details', {}).get('description', 'Sin descripción.')[:200]
-                        })
-
-            return parsed_data
-
-        except Exception as e:
-            return {"error": f"Fallo en Plant.id: {str(e)}"}
-
-    def analyze_full(self, image_bytes):
-        """Método maestro que llama a ambos motores."""
-        # Nota: En el paso 2 haremos que esto sea asíncrono para velocidad
-        roi_data = self._process_roboflow(image_bytes)
-        plant_data = self._process_plant_id(image_bytes)
+        vec_x = u
+        vec_y = -v 
+        
+        if is_front_lens:
+            vec_z = z_component 
+        else:
+            vec_z = -z_component
+            vec_x = -vec_x 
 
         return {
-            "telemetry_roi": roi_data,
-            "biological_data": plant_data
+            "x": round(vec_x, 4), 
+            "y": round(vec_y, 4), 
+            "z": round(vec_z, 4)
         }
+
+    def _process_roboflow_hybrid(self, image_numpy):
+        try:
+            if image_numpy is None:
+                return {"error": "Imagen no válida para Roboflow"}
+
+            height, width, _ = image_numpy.shape
+            img_rgb = cv2.cvtColor(image_numpy, cv2.COLOR_BGR2RGB)
+
+            # Inferencia Roboflow
+            response = self.model.predict(img_rgb, confidence=5).json()
+
+            detections = []
+            if isinstance(response, dict) and 'predictions' in response:
+                detections = response['predictions']
+            elif isinstance(response, list):
+                detections = response
+            
+            # --- Procesamiento SUELO ---
+            soil_labels = ["field-soil", "unused-land", "agriculture-land", "trees", "crop", "soil", "land"]
+            best_soil = None
+            max_conf_soil = 0
+
+            for det in detections:
+                if det['class'] in soil_labels:
+                    if det['confidence'] > max_conf_soil:
+                        max_conf_soil = det['confidence']
+                        best_soil = det
+            
+            soil_result = None
+            if best_soil:
+                cx, cy = best_soil['x'], best_soil['y']
+                vector_3d = self._pixel_to_unit_vector_dual_fisheye(cx, cy, width, height)
+                
+                # Fallback vectorial si cae en zona muerta
+                if vector_3d is None:
+                    vector_3d = {"x": 0, "y": -0.5, "z": 0.866}
+
+                soil_result = {
+                    "pixel_coords": {"x": int(cx), "y": int(cy)},
+                    "vector_3d": vector_3d,
+                    "source": "IA",
+                    "confidence": best_soil['confidence']
+                }
+            else:
+                # Fallback Geométrico (Hardcoded)
+                cx, cy = width / 4, height * 0.75
+                soil_result = {
+                    "pixel_coords": {"x": int(cx), "y": int(cy)},
+                    "vector_3d": {"x": 0.0, "y": -0.7071, "z": 0.7071}, 
+                    "source": "FALLBACK_GEOMETRY"
+                }
+
+            # --- Procesamiento CIELO ---
+            sky_labels = ["sky", "cielo", "cloud"]
+            best_sky = None
+            max_conf_sky = 0
+
+            for det in detections:
+                if det['class'] in sky_labels:
+                    if det['confidence'] > max_conf_sky:
+                        max_conf_sky = det['confidence']
+                        best_sky = det
+            
+            sky_result = None
+            if best_sky:
+                cx, cy = best_sky['x'], best_sky['y']
+                vector_3d = self._pixel_to_unit_vector_dual_fisheye(cx, cy, width, height)
+                
+                if vector_3d is None:
+                     vector_3d = {"x": 0, "y": 0.5, "z": 0.866}
+
+                sky_result = {
+                    "pixel_coords": {"x": int(cx), "y": int(cy)},
+                    "vector_3d": vector_3d,
+                    "source": "IA",
+                    "confidence": best_sky['confidence']
+                }
+            else:
+                # Fallback Geométrico
+                cx, cy = width / 4, height * 0.25
+                sky_result = {
+                    "pixel_coords": {"x": int(cx), "y": int(cy)},
+                    "vector_3d": {"x": 0.0, "y": 0.7071, "z": 0.7071},
+                    "source": "FALLBACK_GEOMETRY"
+                }
+
+            return {
+                "sky": sky_result,
+                "soil": soil_result
+            }
+
+        except Exception as e:
+            return {"error": f"Fallo en Roboflow Hybrid: {str(e)}"}
+
+    def download_image_from_url(self, url):
+        """Descarga la imagen de la URL y devuelve bytes"""
+        print(f"Descargando imagen desde: {url} ...")
+        try:
+            response = requests.get(url, timeout=15)
+            response.raise_for_status()
+            print("-> Descarga completada.")
+            return response.content
+        except Exception as e:
+            print(f"[ERROR DE RED] {e}")
+            return None
+
+    def analyze_full(self, raw_image_bytes):
+        # 1. Decodificar
+        image_numpy = self._decode_bytes_to_numpy(raw_image_bytes)
+        if image_numpy is None: return {"error": "Archivo corrupto o no es imagen"}
+        
+        # 2. Procesar Geometría y Zonas (Roboflow + Matemáticas)
+        roi_data = self._process_roboflow_hybrid(image_numpy)
+        
+        # Retornamos estructura simplificada
+        return {"telemetry_roi": roi_data}
+
+# --- BLOQUE DE EJECUCIÓN ---
+if __name__ == "__main__":
+    
+    # URL de prueba
+    TEST_URL = "https://res.cloudinary.com/dbi5thf23/image/upload/v1769162534/IMG_20240927_115037_00_107_1_3_cd3cph.jpg" 
+    
+    print("--- MOTOR DE TELEMETRÍA (SIN BIOLOGÍA) ---")
+    
+    engine = AgroEngine()
+    
+    # 1. Descargar
+    file_bytes = engine.download_image_from_url(TEST_URL)
+    
+    if file_bytes:
+        # 2. Analizar
+        print("Analizando geometría...")
+        resultado = engine.analyze_full(file_bytes)
+        
+        print("\n--- RESULTADO FINAL ---")
+        print(json.dumps(resultado, indent=4))
+    else:
+        print("No se pudo procesar porque la descarga falló.")
