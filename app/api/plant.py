@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+import requests
 from .agro_engine import AgroEngine
 from models.field import getParcelas4HistMeteo
 from .meteo import getForcasByLatLong
@@ -44,24 +45,44 @@ def analyze_plant_data():
 
     print(type(resultForeCast))
     print("Miguel Forecast en Plant: ", resultForeCast)
-    # Verificaciones de seguridad básicas
+
+
+# Verificaciones de seguridad básicas
     if not engine:
         return jsonify({"error": "El motor de IA no está disponible en este momento"}), 503
 
-    if 'image' not in request.files:
-        return jsonify({"error": "No se recibió el archivo 'image'"}), 400
+    # --- LÓGICA DE ENTRADA (ARCHIVO O URL) ---
+    image_bytes = None
 
-    file = request.files['image']
+    # 1. Intentamos leer archivo directo
+    if 'image' in request.files:
+        file = request.files['image']
+        if file.filename != '':
+            image_bytes = file.read()
 
-    if file.filename == '':
-        return jsonify({"error": "Nombre de archivo vacío"}), 400
+    # 2. Si no hay archivo, intentamos leer URL
+    if image_bytes is None:
+        image_url = request.form.get('image_url') or (request.json.get('image_url') if request.is_json else None)
+        
+        if image_url:
+            try:
+                print(f"⬇️ Descargando imagen desde URL: {image_url}")
+                resp = requests.get(image_url, timeout=10)
+                if resp.status_code == 200:
+                    image_bytes = resp.content
+                else:
+                    return jsonify({"error": f"Fallo al descargar URL. Status: {resp.status_code}"}), 400
+            except Exception as e:
+                return jsonify({"error": f"Error de conexión: {str(e)}"}), 400
+
+    # 3. Si sigue vacío, error
+    if image_bytes is None:
+        return jsonify({"error": "No se recibió imagen. Envíe un archivo 'image' o un string 'image_url'"}), 400
 
     try:
-        # Leemos los bytes
-        image_bytes = file.read()
-
         # Llamamos al motor (AgroEngine)
         results = engine.analyze_full(image_bytes)
+
         
         print(results)
 
