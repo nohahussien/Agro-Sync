@@ -9,7 +9,6 @@ from app.api.app_llm import messages_bp
 
 app = Flask(__name__)
 #CORS(app)  # ← ESTO HACE LA MAGIA ✨
-CORS(app, resources={r"/*": {"origins": "*"}})
 CORS(app, resources={r"/*": {
             "origins": "*",
             "allow_headers": "*"

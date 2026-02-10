@@ -57,7 +57,7 @@ chain = prompt | llm
 
 @messages_bp.route('/conversations/<int:conversation_id>/messages', methods=['POST'])
 def add_message(conversation_id):
-    print("🚀 POST messages")
+    print("POST messages")
     try:
         data = request.get_json()
         firebase_uid_user = data.get('firebase_uid_user')
@@ -67,7 +67,7 @@ def add_message(conversation_id):
         conn = get_db_connection()
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                # 1️⃣ CARGAR HISTORIAL (últimos 10 mensajes)
+                # CARGAR HISTORIAL (últimos 10 mensajes)
                 print("📚 Cargando historial...")
                 cur.execute("""
                     SELECT rol as role, contenido as content 
@@ -88,14 +88,14 @@ def add_message(conversation_id):
                 
                 print(f"📚 Historial cargado: {len(history)} mensajes")
 
-                # 2️⃣ GUARDAR USUARIO
+                # GUARDAR USUARIO
                 cur.execute("""
                     INSERT INTO mensaje (conversacion_id, rol, contenido)
                     VALUES (%s, %s, %s) RETURNING id::text as id, rol as role, contenido as content, created_at as timestamp
                 """, (conversation_id, 'user', content))
                 user_message = cur.fetchone()
 
-                # 3️⃣ LLM CON HISTORIAL REAL
+                # LLM CON HISTORIAL REAL
                 print("🤖 LLM con contexto...")
                 response = chain.invoke({
                     "input": content,
@@ -105,7 +105,7 @@ def add_message(conversation_id):
                 })
                 response_text = response.content
 
-                # 4️⃣ ASSISTANT
+                # ASSISTANT
                 cur.execute("""
                     INSERT INTO mensaje (conversacion_id, rol, contenido)
                     VALUES (%s, %s, %s) RETURNING id::text as id, rol as role, contenido as content, created_at as timestamp
@@ -114,7 +114,7 @@ def add_message(conversation_id):
                 
                 conn.commit()
 
-                # 5️⃣ DEVOLVER NUEVOS
+                # DEVOLVER NUEVOS
                 new_messages = [user_message, assistant_message]
                 print(f"🚀 {len(new_messages)} nuevos msgs + {len(history)} contexto")
                 return jsonify(new_messages), 201
@@ -123,5 +123,5 @@ def add_message(conversation_id):
             conn.close()
 
     except Exception as e:
-        print(f"💥 ERROR: {e}")
+        print(f"ERROR: {e}")
         return jsonify({"error": str(e)}), 500

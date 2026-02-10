@@ -3,22 +3,15 @@ import time
 import pandas as pd
 import logging
 import ast
-
 from psycopg2.extras import RealDictCursor
-
 import psycopg2
 import os
 from dotenv import load_dotenv
-
-
 import time
 from datetime import datetime
-
 import ee, json
 from shapely import wkt
-
 from datetime import datetime, timedelta
-
 # Configura logging para ver las ejecuciones
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -91,7 +84,7 @@ def save_indices_to_db(df: pd.DataFrame):
     """
 
     if df.empty:
-        logger.info("⚠️ DataFrame vacío. Nada que insertar.")
+        logger.info("DataFrame vacío. Nada que insertar.")
         return
 
     conn = get_db_connection()
@@ -127,7 +120,7 @@ def save_indices_to_db(df: pd.DataFrame):
 
     except Exception as e:
         conn.rollback()
-        logger.error(f"❌ Error insertando índices en DB: {e}")
+        logger.error(f"Error insertando índices en DB: {e}")
 
     finally:
         conn.close()
@@ -139,22 +132,21 @@ def save_indices_to_db(df: pd.DataFrame):
 # 1) INICIALIZAR GOOGLE EARTH ENGINE
 # --------------------------------------------------
 def leerYGuardarVegetacionIndices(id_parcela=None):
-    CREDENTIALS_PATH = 'creds/desafio-tripulaciones-484914-d7647b47c61b.json'  # Tu archivo descargado
+    CREDENTIALS_PATH = '/app/app/api/creds/desafio-tripulaciones-484914-d7647b47c61b.json'  # Tu archivo descargado
     # CREDENTIALS_PATH = '/app/app/ProgramedJobs/creds/desafio-tripulaciones-484914-d7647b47c61b.json'  # Tu archivo descargado
     PROYECTO_ID = 'desafio-tripulaciones-484914'
     try:
-        print("🔑 Cargando credenciales service account...")
         
         # Verificar que el archivo existe
         if not os.path.exists(CREDENTIALS_PATH):
-            raise FileNotFoundError(f"❌ JSON no encontrado: {CREDENTIALS_PATH}")
+            raise FileNotFoundError(f"JSON no encontrado: {CREDENTIALS_PATH}")
         
         # Cargar JSON y verificar client_email
         with open(CREDENTIALS_PATH, 'r') as f:
             credentials_info = json.load(f)
         
         service_account = credentials_info['client_email']
-        print(f"✅ Service Account: {service_account}")
+        print(f"Service Account: {service_account}")
         
         # Inicializar con PROYECTO y credenciales
         credentials = ee.ServiceAccountCredentials(service_account, CREDENTIALS_PATH)
@@ -163,10 +155,10 @@ def leerYGuardarVegetacionIndices(id_parcela=None):
             project=PROYECTO_ID 
         )
         
-        print("🎉 Earth Engine inicializado correctamente SIN browser!")
+        print("Earth Engine inicializado correctamente SIN browser!")
         
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
         raise
 
     # --------------------------------------------------
@@ -231,7 +223,7 @@ def leerYGuardarVegetacionIndices(id_parcela=None):
         .map(add_indices)
     )
 
-    print(f"🔍 {s2.size().getInfo()} imágenes encontradas")
+    print(f"{s2.size().getInfo()} imágenes encontradas")
 
 
     # --------------------------------------------------
@@ -272,15 +264,15 @@ def leerYGuardarVegetacionIndices(id_parcela=None):
     '''
     df.to_csv('indices_fincas_S3.csv', index=False)
 
-    print("✅ CSV generado correctamente:", df.shape)
+    print("CSV generado correctamente:", df.shape)
     '''
     
     save_indices_to_db(df)
 
-    print("✅ Datos guardados en base de datos correctamente:", df.shape)
+    print("Datos guardados en base de datos correctamente:", df.shape)
 
 
-#leerYGuardarVegetacionIndices()
+leerYGuardarVegetacionIndices()
 
 # Programar cada noche 06:00
 schedule.every().day.at("06:00").do(leerYGuardarVegetacionIndices)

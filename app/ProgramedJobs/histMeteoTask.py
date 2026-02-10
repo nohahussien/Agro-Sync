@@ -107,7 +107,7 @@ def save_meteo_histo(df: pd.DataFrame):
 
 
 
-def fetch_meteo_data(id_parcela):
+def fetch_meteo_data(id_parcela=None):
     """Función que hace la llamada a Open-Meteo cada 15 min"""
     parcelas = getParcelas4HistMeteo(id_parcela)
 
@@ -173,7 +173,7 @@ def fetch_meteo_data(id_parcela):
             logger.error(f"Error en consulta meteo: {e}")
 
 
-#fetch_meteo_data()
+fetch_meteo_data()
 
 # Programar cada noche 07:00
 schedule.every().day.at("07:00").do(fetch_meteo_data)

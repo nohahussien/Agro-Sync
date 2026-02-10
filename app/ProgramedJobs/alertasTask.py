@@ -23,6 +23,9 @@ from psycopg2.extras import RealDictCursor
 import requests
 import ast
 
+import pandas as pd
+import numpy as np
+
 
 from dotenv import load_dotenv
 
@@ -35,7 +38,7 @@ load_dotenv()
 # INITIALIZAR ENGINE ← ¡ESTO FALTABA!
 DATABASE_URL = os.getenv('DATABASE_URL', '')
 if not DATABASE_URL:
-    raise ValueError("❌ DATABASE_URL no está definida")
+    raise ValueError("DATABASE_URL no está definida")
 
 engine = create_engine(DATABASE_URL)
 
@@ -169,11 +172,7 @@ def calcular_alertas(id_parcela):
         .mean()
         .reset_index(level=0, drop=True)
     )
-    # print(df_all)    
     dfDatosConAlertas = add_alerts(df_all)
-    # print(dfDatosConAlertas.columns)
-    # print("dfDatosConAlertas: ")
-    # print(dfDatosConAlertas)
     
     logger.info("Alertas nocturnas procesadas y guardadas")
     logger.info("=== FIN ALERTAS NOCTURNAS ===")
@@ -245,10 +244,6 @@ def riesgo_plaga(row):
         return "MEDIO"
     else:
         return None
-
-
-import pandas as pd
-import numpy as np
 
 
 def calculate_spi(precipitation_series, scale=30):
@@ -455,7 +450,7 @@ def read_climate_from_db() -> pd.DataFrame:
     climate_df = pd.read_sql(query, engine)
     climate_df['time'] = pd.to_datetime(climate_df['time'])
     
-    print(f"🌦 {len(climate_df):,} filas climáticas cargadas desde BBDD")
+    print(f"{len(climate_df):,} filas climáticas cargadas desde BBDD")
     return climate_df
 
 
@@ -480,7 +475,7 @@ def read_soil_from_db() -> pd.DataFrame:
     return soil_df
 
 def calcular_alertas_sequia():
-    print("\n🌱 Starting drought prediction pipeline...\n")
+    print("Starting drought prediction pipeline...\n")
 
     # 1) Lectura CSV
     climate_df = read_climate_from_db()
@@ -488,19 +483,19 @@ def calcular_alertas_sequia():
     
 
     # 2) Clima
-    print("🌦 Calculating rolling weather + drought indices...")
+    print("Calculating rolling weather + drought indices...")
     climate_final = process_climate(climate_df)
 
     # 3) Suelo
-    print("🌿 Processing soil drought indicators...")
+    print("Processing soil drought indicators...")
     soil_df = process_soil(soil_df)
 
     # 4) Merge clima+suelo
-    print("🔗 Merging climate and soil datasets...")
+    print("Merging climate and soil datasets...")
     all_predictions_merged = merge_climate_soil(climate_final, soil_df)
 
     # 5) Lógica final de sequía
-    print("🧠 Computing final drought risk, severity and confidence...")
+    print("Computing final drought risk, severity and confidence...")
     all_predictions_merged = apply_final_drought_logic(all_predictions_merged)
 
     final_output = all_predictions_merged[
@@ -516,7 +511,7 @@ def calcular_alertas_sequia():
         ]
     ]
 
-    print("\n✅ DONE!")
+    print("DONE!")
     return final_output
     
 
@@ -524,7 +519,7 @@ def calcular_alertas_sequia():
 def procesar_y_guardar_alertas(dfDatosConAlertas):
     """1. Lee histórico → 2. UPSERT datos actuales → 3. Log cambios"""
     
-    logger.info("🔄 Iniciando procesamiento de alertas...")
+    logger.info("Iniciando procesamiento de alertas...")
     
     # 1. CARGAR HISTÓRICO desde BBDD
     historic_query = """
@@ -534,7 +529,7 @@ def procesar_y_guardar_alertas(dfDatosConAlertas):
     """
     
     historicAlertaDataFrame = pd.read_sql(historic_query, engine)
-    logger.info(f"📥 Histórico cargado: {len(historicAlertaDataFrame)} registros")
+    logger.info(f"Histórico cargado: {len(historicAlertaDataFrame)} registros")
     
     # 2. PREPARAR DataFrame actual para BBDD
     #print(dfDatosConAlertas)
@@ -546,16 +541,16 @@ def procesar_y_guardar_alertas(dfDatosConAlertas):
     df_alertas.columns = ['uid_parcel', 'fecha', 'alerta_helada', 'alerta_inundacion', 'alerta_plaga', 'alerta_sequia']
     df_alertas['fecha'] = pd.to_datetime(df_alertas['fecha']).dt.date
     
-    logger.info(f"📤 Datos actuales: {len(df_alertas)} registros")
+    logger.info(f"Datos actuales: {len(df_alertas)} registros")
     
     # 3. MÉTODO 1: UPSERT MÁGICO con función personalizada
     upsert_alertas(df_alertas)
     
     # 4. LOG CAMBIOS (opcional)
     cambios = comparar_cambios(historicAlertaDataFrame, df_alertas)
-    logger.info(f"📊 Cambios detectados: {cambios}")
+    logger.info(f"Cambios detectados: {cambios}")
     
-    logger.info("✅ Alertas procesadas correctamente")
+    logger.info("Alertas procesadas correctamente")
 
 def upsert_alertas(df):
     """Método mágico UPSERT para PostgreSQL"""
@@ -644,9 +639,9 @@ def merge_alertas_con_sequia(dfDatosConAlertas: pd.DataFrame,
     })
     #print(dfDatosConAlertas)
     #print(alertasSequia)
-    print(f"📊 Antes del merge:")
-    print(f"  Alertas meteo: {len(dfDatosConAlertas)} filas")
-    print(f"  Alertas sequía: {len(alertasSequia)} filas")
+    print(f"Antes del merge:")
+    print(f"Alertas meteo: {len(dfDatosConAlertas)} filas")
+    print(f"Alertas sequía: {len(alertasSequia)} filas")
     
     # 1) Merge LEFT: alertas meteo + sequía (sequía opcional)
     df_merged = dfDatosConAlertas.merge(
@@ -669,7 +664,7 @@ def merge_alertas_con_sequia(dfDatosConAlertas: pd.DataFrame,
         solo_sequia_minimal['alerta_inundacion'] = None
         solo_sequia_minimal['alerta_plaga'] = None
         df_merged = pd.concat([df_merged, solo_sequia_minimal], ignore_index=True)
-        print(f"➕ Añadidos {len(solo_sequia)} registros solo sequía")
+        print(f"Añadidos {len(solo_sequia)} registros solo sequía")
     
     # Restaurar nombres originales
     df_merged = df_merged.rename(columns={'uid_parcel': 'field'})
@@ -681,26 +676,24 @@ def merge_alertas_con_sequia(dfDatosConAlertas: pd.DataFrame,
     
     df_merged = df_merged[cols_orden]
     
-    print(f"✅ Merge completado: {len(df_merged)} filas totales")
-    print("\n🔍 Muestra del merge:")
-    # print(df_merged[['field', 'fecha', 'rain', 'drought_risk']].head())
+    print(f"Merge completado: {len(df_merged)} filas totales")
     
     return df_merged
 
-def calcular_y_guardar_alertas(id_parcela):
+def calcular_y_guardar_alertas(id_parcela=None):
     """Flujo completo para alertasTask"""
-    logger.info("🌙 === ALERTAS 03:00 AM ===")
+    logger.info("=== ALERTAS 03:00 AM ===")
     
     try:
         # 1. Obtener datos meteo + calcular alertas
         dfDatosConAlertas = calcular_alertas(id_parcela)  
-        print("📈 Alertas meteo:")
+        print("Alertas meteo:")
         #print(dfDatosConAlertas)
         
         
         # 2. Calcular alertas sequía
         alertasSequia = calcular_alertas_sequia()
-        print("🌵 Alertas sequía:")
+        print("Alertas sequía:")
         #print(alertasSequia[['field', 'time', 'drought_risk']].head())
         
         # Fecha de hoy
@@ -735,10 +728,10 @@ def calcular_y_guardar_alertas(id_parcela):
         procesar_y_guardar_alertas(dfFinalAlertas_limpio)
         
     except Exception as e:
-        logger.error(f"❌ Error procesando alertas: {e}")
+        logger.error(f"Error procesando alertas: {e}")
         raise
 
-#calcular_y_guardar_alertas()
+calcular_y_guardar_alertas()
 
 # Programar cada noche 08:00
 schedule.every().day.at("08:00").do(calcular_y_guardar_alertas)

@@ -96,7 +96,6 @@ def save_meteo_forecast(uid_parcel: str, df: pd.DataFrame):
 
 def fetch_meteo_data(id_parcela=None):
     """Función que hace la llamada a Open-Meteo cada 15 min"""    
-    print("**************************EEEEEEEEEENTROOOOO*************************")
     parcelas = getParcelas4HistMeteo(id_parcela)
 
     for row in parcelas:
@@ -131,7 +130,7 @@ def fetch_meteo_data(id_parcela=None):
             }])
             
             # Aquí guardas los datos (base de datos, CSV, etc.)
-            # print(f"Datos obtenidos: {df.to_dict('records')}")
+            print(f"Datos obtenidos: {df.to_dict('records')}")
         
             save_meteo_forecast(uid, df)
             
@@ -139,7 +138,9 @@ def fetch_meteo_data(id_parcela=None):
             logger.error(f"Error en consulta meteo: {e}")
 
 
-#fetch_meteo_data()
+fetch_meteo_data()
+
+print("Hecho")
 
 # Programa la tarea cada 15 minutos
 schedule.every(180).minutes.do(fetch_meteo_data)

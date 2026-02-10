@@ -20,7 +20,6 @@ def getParcelas4HistMeteo(id_parcela=None):
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(query, params)
             parcelas = cur.fetchall()  # ← Recupera TODAS las filas
-            print("miguel parcelas: ", parcelas)
             return parcelas  # lista de dicts
 
     except Exception as e:
