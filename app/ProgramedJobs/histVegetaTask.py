@@ -132,8 +132,8 @@ def save_indices_to_db(df: pd.DataFrame):
 # 1) INICIALIZAR GOOGLE EARTH ENGINE
 # --------------------------------------------------
 def leerYGuardarVegetacionIndices(id_parcela=None):
-    CREDENTIALS_PATH = '/app/app/api/creds/desafio-tripulaciones-484914-d7647b47c61b.json'  # Tu archivo descargado
-    # CREDENTIALS_PATH = '/app/app/ProgramedJobs/creds/desafio-tripulaciones-484914-d7647b47c61b.json'  # Tu archivo descargado
+    CREDENTIALS_PATH = '/app/app/api/creds/desafio-tripulaciones-484914-d7647b47c61b.json'  # Para Subida
+    # CREDENTIALS_PATH = 'creds/desafio-tripulaciones-484914-d7647b47c61b.json'  # Para ejecución local
     PROYECTO_ID = 'desafio-tripulaciones-484914'
     try:
         
